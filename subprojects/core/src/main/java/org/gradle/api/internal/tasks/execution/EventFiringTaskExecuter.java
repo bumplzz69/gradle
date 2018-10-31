@@ -49,31 +49,24 @@ public class EventFiringTaskExecuter implements TaskExecuter {
         return buildOperationExecutor.call(new CallableBuildOperation<TaskExecuterResult>() {
             @Override
             public TaskExecuterResult call(BuildOperationContext operationContext) {
-                TaskExecuterResult result = executeTask();
-                operationContext.setResult(new ExecuteTaskBuildOperationResult(state, context, findPreviousOriginMetadata(result)));
+                TaskExecuterResult result = executeTask(operationContext);
                 operationContext.setStatus(state.getFailure() != null ? "FAILED" : state.getSkipMessage());
                 operationContext.failed(state.getFailure());
                 return result;
             }
 
-            private TaskExecuterResult executeTask() {
+            @Nullable
+            private TaskExecuterResult executeTask(BuildOperationContext operationContext) {
                 try {
                     taskExecutionListener.beforeExecute(task);
                 } catch (Throwable t) {
                     state.setOutcome(new TaskExecutionException(task, t));
-                    return new TaskExecuterResult() {
-                        @Nullable
-                        @Override
-                        public OriginMetadata getOriginMetadata() {
-                            return null;
-                        }
-                    };
+                    return null;
                 }
 
                 TaskExecuterResult result = delegate.execute(task, state, context);
+                operationContext.setResult(new ExecuteTaskBuildOperationResult(state, context, findPreviousOriginMetadata(result)));
 
-                // If this fails, it masks the task failure.
-                // It should addSuppressed() the task failure if there was one.
                 try {
                     taskExecutionListener.afterExecute(task, state);
                 } catch (Throwable t) {
